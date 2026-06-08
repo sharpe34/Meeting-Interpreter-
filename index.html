@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SafetyInterp">
+  <meta name="theme-color" content="#0F2540">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Safety Meeting Interpreter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --orange:#E8621A;--orange-light:#FDF0E8;--orange-dark:#B84C10;
+  --navy:#0F2540;--navy-mid:#1E3A5F;--navy-light:#E8EEF5;
+  --green:#1A7A3F;--green-light:#E8F5EE;
+  --red:#C0392B;--red-light:#FDECEA;
+  --text:#0F2540;--text-muted:#5A7A99;--text-light:#8AAAC4;
+  --border:rgba(15,37,64,0.12);--border-med:rgba(15,37,64,0.2);
+  --bg:#F0F4F9;--white:#FFFFFF;
+  --radius:12px;--radius-sm:8px;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;font-size:15px;}
+.header{background:var(--navy);color:white;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px;}
+.header-left{display:flex;align-items:center;gap:10px;}
+.header-logo{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;}
+.header-logo span{color:var(--orange);}
+.meeting-badges{display:flex;gap:6px;flex-wrap:wrap;}
+.badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;}
+.badge-project{background:rgba(232,98,26,0.25);color:#FFB88C;}
+.badge-timer{background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.8);font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px;}
+.badge-count{background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.8);}
+.btn-header{padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:white;font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 0.15s;}
+.btn-header:hover{background:rgba(255,255,255,0.1);}
+.btn-header.orange{border-color:var(--orange);color:var(--orange);}
+.status-bar{background:var(--navy-mid);padding:7px 16px;display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,0.75);flex-shrink:0;}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#888;flex-shrink:0;transition:background 0.3s;}
+.status-dot.listening{background:var(--orange);animation:pulse 1s infinite;}
+.status-dot.translating{background:#F0C040;}
+.status-dot.speaking{background:#3CBB77;animation:pulse 0.6s infinite;}
+.status-dot.ready{background:#3CBB77;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.tabs{display:flex;background:var(--white);border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab{flex:1;padding:10px 4px;border:none;background:transparent;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;}
+.tab.active{color:var(--navy);border-bottom-color:var(--orange);}
+.tab-content{display:none;flex:1;overflow-y:auto;flex-direction:column;}
+.tab-content.active{display:flex;}
+
+/* INTERPRETER */
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px;flex-shrink:0;}
+.panel{background:var(--white);border-radius:var(--radius);border:1.5px solid var(--border);overflow:hidden;transition:border-color 0.2s;}
+.panel.speaking-highlight{border-color:var(--green);box-shadow:0 0 0 2px rgba(26,122,63,0.15);}
+.panel-header{padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.panel-label{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+.panel-en .panel-header{background:var(--navy-light);}
+.panel-en .panel-label{color:var(--navy);}
+.panel-es .panel-header{background:var(--orange-light);}
+.panel-es .panel-label{color:var(--orange-dark);}
+.caption-box{padding:14px;min-height:90px;font-size:20px;font-weight:500;line-height:1.4;color:var(--text);}
+.caption-box.active{border-left:3px solid var(--orange);}
+.caption-placeholder{font-size:14px;color:var(--text-muted);font-weight:400;font-style:italic;}
+.interim-text{color:var(--text-muted);font-style:italic;}
+
+/* SPEAKING BADGE */
+.speaking-badge{display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--green);font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px;text-transform:uppercase;}
+.speaking-badge.active{display:flex;}
+.speaking-wave{display:flex;gap:2px;align-items:center;}
+.speaking-wave span{display:block;width:3px;border-radius:2px;background:var(--green);animation:wave 0.8s infinite ease-in-out;}
+.speaking-wave span:nth-child(1){height:8px;animation-delay:0s;}
+.speaking-wave span:nth-child(2){height:14px;animation-delay:0.15s;}
+.speaking-wave span:nth-child(3){height:10px;animation-delay:0.3s;}
+.speaking-wave span:nth-child(4){height:16px;animation-delay:0.1s;}
+.speaking-wave span:nth-child(5){height:8px;animation-delay:0.25s;}
+@keyframes wave{0%,100%{transform:scaleY(0.4)}50%{transform:scaleY(1)}}
+
+.controls{padding:8px 10px;display:flex;gap:8px;flex-shrink:0;}
+.btn-mic{flex:1;padding:14px;border:none;border-radius:var(--radius);font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.15s;}
+.btn-mic svg{width:24px;height:24px;flex-shrink:0;}
+.btn-en{background:var(--navy);color:white;}
+.btn-es{background:var(--orange);color:white;}
+.btn-en.active-mic{animation:micPulseBlue 0.8s infinite;}
+.btn-es.active-mic{animation:micPulseOrange 0.8s infinite;}
+@keyframes micPulseBlue{0%,100%{box-shadow:0 0 0 0 rgba(15,37,64,0.5)}50%{box-shadow:0 0 0 10px rgba(15,37,64,0)}}
+@keyframes micPulseOrange{0%,100%{box-shadow:0 0 0 0 rgba(232,98,26,0.5)}50%{box-shadow:0 0 0 10px rgba(232,98,26,0)}}
+
+/* VOICE CONTROLS */
+.voice-controls{padding:0 10px 8px;flex-shrink:0;}
+.voice-row{display:flex;align-items:center;gap:10px;background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--border);padding:8px 12px;}
+.voice-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;}
+.voice-select{flex:1;padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-family:'Barlow',sans-serif;font-size:13px;color:var(--text);background:var(--bg);outline:none;min-width:0;}
+.voice-rate{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.voice-rate label{font-size:11px;color:var(--text-muted);white-space:nowrap;}
+.voice-rate input{width:70px;}
+.btn-stop-speech{padding:5px 11px;border-radius:6px;border:1.5px solid var(--border-med);background:var(--white);color:var(--red);font-family:'Barlow',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.btn-stop-speech:hover{background:var(--red-light);}
+
+/* TOPIC TAGS */
+.topic-section{padding:0 10px 8px;flex-shrink:0;}
+.topic-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+.topic-tags{display:flex;flex-wrap:wrap;gap:6px;}
+.topic-tag{padding:5px 11px;border-radius:20px;border:1.5px solid var(--border-med);background:var(--white);font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all 0.15s;font-family:'Barlow',sans-serif;}
+.topic-tag.active{background:var(--navy);color:white;border-color:var(--navy);}
+.topic-tag:hover:not(.active){background:var(--navy-light);border-color:var(--navy);}
+
+/* MINUTES */
+.minutes-section{flex:1;display:flex;flex-direction:column;padding:0 10px 10px;min-height:0;}
+.minutes-header{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px;flex-shrink:0;}
+.minutes-title{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);}
+.btn-sm{padding:5px 11px;border-radius:6px;border:1px solid var(--border-med);background:var(--white);color:var(--text-muted);font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;gap:5px;}
+.btn-sm:hover{background:var(--navy-light);color:var(--navy);}
+.btn-sm.danger:hover{background:var(--red-light);color:var(--red);border-color:var(--red);}
+.minutes-log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;}
+.log-entry{display:grid;grid-template-columns:62px 50px 1fr auto;gap:7px;align-items:start;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--white);font-size:12px;line-height:1.4;}
+.log-entry.lang-en{border-left:3px solid var(--navy);}
+.log-entry.lang-es{border-left:3px solid var(--orange);}
+.log-time{color:var(--text-muted);font-size:11px;font-weight:500;padding-top:1px;}
+.log-lang{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:2px 6px;border-radius:4px;text-align:center;width:fit-content;}
+.lang-badge-en{background:var(--navy-light);color:var(--navy);}
+.lang-badge-es{background:var(--orange-light);color:var(--orange-dark);}
+.log-original{color:var(--text);font-weight:500;}
+.log-translated{color:var(--text-muted);font-style:italic;font-size:11px;margin-top:2px;}
+.log-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+.log-tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--navy-light);color:var(--navy);}
+.btn-replay{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;align-self:start;}
+.btn-replay:hover{background:var(--green-light);color:var(--green);border-color:var(--green);}
+.minutes-empty{display:flex;align-items:center;justify-content:center;height:80px;color:var(--text-muted);font-size:13px;font-style:italic;text-align:center;padding:10px;}
+
+/* SETUP */
+.setup-content{padding:14px;display:flex;flex-direction:column;gap:14px;}
+.form-section{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);padding:14px;}
+.form-section-title{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.form-row.full{grid-template-columns:1fr;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;}
+.form-input{padding:9px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);font-family:'Barlow',sans-serif;font-size:14px;color:var(--text);background:var(--bg);transition:border-color 0.15s;outline:none;width:100%;}
+.form-input:focus{border-color:var(--navy);}
+.form-input::placeholder{color:var(--text-light);}
+
+/* CREW */
+.attendance-content{padding:14px;display:flex;flex-direction:column;gap:12px;}
+.add-crew-row{display:flex;gap:8px;}
+.btn-add{padding:9px 16px;border-radius:var(--radius-sm);border:none;background:var(--navy);color:white;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.5px;cursor:pointer;white-space:nowrap;}
+.crew-list{display:flex;flex-direction:column;gap:6px;}
+.crew-card{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--border);}
+.crew-avatar{width:36px;height:36px;border-radius:50%;background:var(--navy-light);color:var(--navy);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+.crew-info{flex:1;}
+.crew-name{font-weight:600;font-size:14px;color:var(--text);}
+.crew-role{font-size:12px;color:var(--text-muted);}
+.toggle-present{position:relative;width:42px;height:24px;flex-shrink:0;}
+.toggle-present input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:#ccc;border-radius:24px;cursor:pointer;transition:background 0.2s;}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:transform 0.2s;}
+.toggle-present input:checked+.toggle-slider{background:var(--green);}
+.toggle-present input:checked+.toggle-slider::before{transform:translateX(18px);}
+.btn-remove-crew{padding:4px 8px;border-radius:4px;border:none;background:transparent;color:var(--text-light);font-size:18px;cursor:pointer;line-height:1;}
+.btn-remove-crew:hover{color:var(--red);background:var(--red-light);}
+.present-count{font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+
+/* PHOTO */
+.photo-content{padding:14px;display:flex;flex-direction:column;gap:12px;}
+.photo-drop{border:2px dashed var(--border-med);border-radius:var(--radius);padding:28px 20px;text-align:center;cursor:pointer;transition:all 0.15s;background:var(--white);}
+.photo-drop:hover{border-color:var(--navy);background:var(--navy-light);}
+.photo-drop-icon{font-size:36px;margin-bottom:10px;}
+.photo-drop-text{font-size:14px;font-weight:500;color:var(--text-muted);}
+.photo-drop-sub{font-size:12px;color:var(--text-light);margin-top:4px;}
+.photo-preview{position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);}
+.photo-preview img{width:100%;display:block;max-height:300px;object-fit:cover;}
+.btn-remove-photo{position:absolute;top:8px;right:8px;padding:4px 10px;background:var(--red);color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,37,64,0.5);z-index:100;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--white);border-radius:var(--radius);width:100%;max-width:420px;overflow:hidden;}
+.modal-header{padding:14px 16px;background:var(--navy);color:white;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;}
+.modal-body{padding:16px;display:flex;flex-direction:column;gap:12px;}
+.modal-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
+.btn-primary{padding:9px 20px;border-radius:var(--radius-sm);border:none;background:var(--navy);color:white;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.5px;cursor:pointer;}
+.btn-secondary{padding:9px 20px;border-radius:var(--radius-sm);border:1.5px solid var(--border-med);background:var(--white);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.5px;cursor:pointer;}
+.btn-close{background:transparent;border:none;color:rgba(255,255,255,0.7);font-size:20px;cursor:pointer;line-height:1;}
+.save-indicator{font-size:11px;color:rgba(255,255,255,0.5);flex-shrink:0;transition:color 0.3s;}
+.browser-warn{background:#FFF4E0;border:1px solid #E8A020;border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;color:#7A4A00;margin:0 10px 6px;flex-shrink:0;display:none;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">⚠️ Safety <span>Interpreter</span></div>
+    <div class="meeting-badges">
+      <span class="badge badge-project" id="badge-project">No Project Set</span>
+      <span class="badge badge-timer" id="meeting-timer">00:00</span>
+      <span class="badge badge-count" id="badge-count">0 entries</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <span class="save-indicator" id="save-indicator">● Saved</span>
+    <button class="btn-header orange" onclick="openEmailModal()">✉ Email</button>
+    <button class="btn-header" onclick="exportMinutes()">⬇ Export</button>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-dot ready" id="status-dot"></div>
+  <span id="status-text">Ready — complete Setup first, then tap a mic button to speak</span>
+</div>
+
+<div class="browser-warn" id="browser-warn">
+  ⚠️ Speech recognition requires Chrome or Edge. Safari and Firefox are not supported.
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('interpreter',this)">🎙 Interpreter</button>
+  <button class="tab" onclick="switchTab('setup',this)">⚙ Setup</button>
+  <button class="tab" onclick="switchTab('attendance',this)">👷 Crew</button>
+  <button class="tab" onclick="switchTab('photo',this)">📷 Sign-In</button>
+</div>
+
+<!-- INTERPRETER TAB -->
+<div class="tab-content active" id="tab-interpreter">
+  <div class="panels">
+    <div class="panel panel-en" id="panel-en">
+      <div class="panel-header">
+        <span class="panel-label">🇺🇸 English</span>
+        <div class="speaking-badge" id="speaking-badge-en">
+          <div class="speaking-wave"><span></span><span></span><span></span><span></span><span></span></div>
+          Speaking
+        </div>
+      </div>
+      <div class="caption-box" id="caption-en">
+        <span class="caption-placeholder">English captions appear here...</span>
+      </div>
+    </div>
+    <div class="panel panel-es" id="panel-es">
+      <div class="panel-header">
+        <span class="panel-label">🇲🇽 Español</span>
+        <div class="speaking-badge" id="speaking-badge-es">
+          <div class="speaking-wave"><span></span><span></span><span></span><span></span><span></span></div>
+          Hablando
+        </div>
+      </div>
+      <div class="caption-box" id="caption-es">
+        <span class="caption-placeholder">Los subtítulos aparecen aquí...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-mic btn-en" id="btn-en" onclick="startListening('en')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      Tap — Speak English
+    </button>
+    <button class="btn-mic btn-es" id="btn-es" onclick="startListening('es')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      Toca — Habla Español
+    </button>
+  </div>
+
+  <!-- VOICE OUTPUT CONTROLS -->
+  <div class="voice-controls">
+    <div class="voice-row">
+      <span class="voice-label">🔊 Voice</span>
+      <select class="voice-select" id="voice-en" title="English voice"></select>
+      <select class="voice-select" id="voice-es" title="Spanish voice"></select>
+      <div class="voice-rate">
+        <label style="font-size:11px;color:var(--text-muted);">Speed</label>
+        <input type="range" id="voice-rate" min="0.6" max="1.4" step="0.1" value="0.9" style="width:60px;">
+        <span id="voice-rate-val" style="font-size:11px;color:var(--text-muted);min-width:22px;">0.9x</span>
+      </div>
+      <button class="btn-stop-speech" onclick="stopSpeech()">■ Stop</button>
+    </div>
+  </div>
+
+  <div class="topic-section">
+    <div class="topic-label">Active Topic Tags</div>
+    <div class="topic-tags">
+      <button class="topic-tag" onclick="toggleTag(this,'Fall Protection')">Fall Protection</button>
+      <button class="topic-tag" onclick="toggleTag(this,'PPE')">PPE</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Electrical')">Electrical</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Trenching')">Trenching</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Traffic Control')">Traffic Control</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Rigging / Lifting')">Rigging / Lifting</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Concrete / Formwork')">Concrete / Formwork</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Heat Safety')">Heat Safety</button>
+      <button class="topic-tag" onclick="toggleTag(this,'Housekeeping')">Housekeeping</button>
+      <button class="topic-tag" onclick="toggleTag(this,'General Safety')">General Safety</button>
+    </div>
+  </div>
+
+  <div class="minutes-section">
+    <div class="minutes-header">
+      <span class="minutes-title">📋 Minutes Log</span>
+      <button class="btn-sm danger" onclick="clearMinutes()">✕ Clear</button>
+    </div>
+    <div class="minutes-log" id="minutes-log">
+      <div class="minutes-empty" id="log-empty">No entries yet — complete Setup, then tap a mic button to begin.</div>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP TAB -->
+<div class="tab-content" id="tab-setup">
+  <div class="setup-content">
+    <div class="form-section">
+      <div class="form-section-title">📋 Meeting Info</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Meeting Title</label>
+          <input class="form-input" id="s-title" placeholder="Daily THA — Bridge Deck" oninput="saveSetup()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input class="form-input" id="s-date" type="date" oninput="saveSetup()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Project Name</label>
+          <input class="form-input" id="s-project" placeholder="Brooks Bridge Replacement" oninput="saveSetup()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Job Number</label>
+          <input class="form-input" id="s-jobnum" placeholder="e.g. 2024-0471" oninput="saveSetup()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Foreman Name</label>
+          <input class="form-input" id="s-foreman" placeholder="Foreman running this meeting" oninput="saveSetup()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location / Area</label>
+          <input class="form-input" id="s-location" placeholder="e.g. WB Bridge Span 3" oninput="saveSetup()">
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">Scope of Work</label>
+          <input class="form-input" id="s-work" placeholder="Brief description of today's scope of work" oninput="saveSetup()">
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">✉️ Email & Company</div>
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">Default Recipients (comma separated)</label>
+          <input class="form-input" id="s-emails" placeholder="pm@company.com, safety@company.com" oninput="saveSetup()">
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-group">
+          <label class="form-label">Company Name</label>
+          <input class="form-input" id="s-company" placeholder="Superior Construction Company" oninput="saveSetup()">
+        </div>
+      </div>
+    </div>
+    <button class="btn-primary" style="width:100%;padding:13px;font-size:15px;" onclick="applySetup()">✓ Save &amp; Start Meeting</button>
+  </div>
+</div>
+
+<!-- ATTENDANCE TAB -->
+<div class="tab-content" id="tab-attendance">
+  <div class="attendance-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="present-count" id="present-count">0 of 0 present</span>
+      <button class="btn-sm" onclick="markAllPresent()">✓ Mark All Present</button>
+    </div>
+    <div class="add-crew-row">
+      <input class="form-input" id="crew-name-input" placeholder="Full name" style="flex:2;">
+      <input class="form-input" id="crew-role-input" placeholder="Role" style="flex:1;">
+      <button class="btn-add" onclick="addCrewMember()">+ Add</button>
+    </div>
+    <div class="crew-list" id="crew-list">
+      <div class="minutes-empty">No crew added yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO TAB -->
+<div class="tab-content" id="tab-photo">
+  <div class="photo-content">
+    <div style="font-size:13px;color:var(--text-muted);background:var(--white);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border);">
+      📌 Photograph the paper sign-in sheet or any THA form. Photos are embedded in exported meeting minutes.
+    </div>
+    <div class="photo-drop" onclick="document.getElementById('photo-input').click()">
+      <div class="photo-drop-icon">📷</div>
+      <div class="photo-drop-text">Tap to take a photo or upload</div>
+      <div class="photo-drop-sub">Sign-in sheet · THA form · Hazard photo</div>
+    </div>
+    <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(event)">
+    <div id="photo-previews" style="display:flex;flex-direction:column;gap:10px;"></div>
+  </div>
+</div>
+
+<!-- EMAIL MODAL -->
+<div class="modal-overlay" id="email-modal">
+  <div class="modal">
+    <div class="modal-header">
+      ✉️ Email Meeting Minutes
+      <button class="btn-close" onclick="closeEmailModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">To (comma separated)</label>
+        <input class="form-input" id="email-to" placeholder="email@company.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="email-subject">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message (optional)</label>
+        <textarea class="form-input" id="email-body" rows="3" placeholder="Additional notes..." style="resize:vertical;"></textarea>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);background:var(--bg);border-radius:var(--radius-sm);padding:10px;line-height:1.6;">
+        📎 Minutes will download as an HTML file. Attach it to the email that opens, or print to PDF first.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeEmailModal()">Cancel</button>
+      <button class="btn-primary" onclick="sendEmail()">Download + Open Email</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── INIT ──────────────────────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) document.getElementById('browser-warn').style.display = 'block';
+
+const meetingStart = new Date();
+const meetingEntries = [];
+const crewMembers = [];
+const photoDataURLs = [];
+let activeTags = [];
+let recognition = null;
+let activeLang = null;
+
+// Timer
+setInterval(() => {
+  const e = Math.floor((Date.now() - meetingStart) / 1000);
+  document.getElementById('meeting-timer').textContent =
+    String(Math.floor(e/60)).padStart(2,'0') + ':' + String(e%60).padStart(2,'0');
+}, 1000);
+
+// ── VOICE SYNTHESIS SETUP ────────────────────────────────────────────────────
+let enVoices = [];
+let esVoices = [];
+let speechQueue = [];
+let isSpeaking = false;
+
+function loadVoices() {
+  const all = window.speechSynthesis.getVoices();
+  enVoices = all.filter(v => v.lang.startsWith('en'));
+  esVoices = all.filter(v => v.lang.startsWith('es'));
+
+  const enSel = document.getElementById('voice-en');
+  const esSel = document.getElementById('voice-es');
+  enSel.innerHTML = enVoices.map((v,i) => `<option value="${i}">${v.name}</option>`).join('');
+  esSel.innerHTML = esVoices.map((v,i) => `<option value="${i}">${v.name}</option>`).join('');
+
+  // Prefer natural-sounding voices
+  const preferEN = enVoices.findIndex(v => /google|samantha|karen|daniel|zira|david/i.test(v.name));
+  const preferES = esVoices.findIndex(v => /google|paulina|monica|jorge|diego/i.test(v.name));
+  if (preferEN >= 0) enSel.value = preferEN;
+  if (preferES >= 0) esSel.value = preferES;
+}
+
+if (window.speechSynthesis.onvoiceschanged !== undefined) {
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+loadVoices();
+setTimeout(loadVoices, 500);
+
+document.getElementById('voice-rate').addEventListener('input', function() {
+  document.getElementById('voice-rate-val').textContent = parseFloat(this.value).toFixed(1) + 'x';
+});
+
+function speakText(text, lang) {
+  // Pause mic while speaking to avoid feedback loop
+  const wasMicActive = activeLang;
+  if (recognition && activeLang) {
+    recognition.stop();
+  }
+
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  const rate = parseFloat(document.getElementById('voice-rate').value);
+  utter.rate = rate;
+  utter.volume = 1;
+
+  const voices = lang === 'es' ? esVoices : enVoices;
+  const selIdx = parseInt(document.getElementById(lang === 'es' ? 'voice-es' : 'voice-en').value);
+  if (voices[selIdx]) utter.voice = voices[selIdx];
+  utter.lang = lang === 'es' ? 'es-MX' : 'en-US';
+
+  const srcPanel = lang === 'es' ? 'panel-es' : 'panel-en';
+  const badge = document.getElementById('speaking-badge-' + lang);
+
+  utter.onstart = () => {
+    isSpeaking = true;
+    setStatus('speaking', lang === 'es' ? '🔊 Speaking in Spanish...' : '🔊 Speaking in English...');
+    document.getElementById(srcPanel).classList.add('speaking-highlight');
+    badge.classList.add('active');
+  };
+
+  utter.onend = () => {
+    isSpeaking = false;
+    document.getElementById(srcPanel).classList.remove('speaking-highlight');
+    badge.classList.remove('active');
+    setStatus('ready', 'Ready — tap a mic button to speak');
+    // Resume mic if it was active
+    if (wasMicActive) {
+      setTimeout(() => {
+        if (!activeLang) startListening(wasMicActive);
+      }, 400);
+    }
+  };
+
+  utter.onerror = () => {
+    isSpeaking = false;
+    document.getElementById(srcPanel).classList.remove('speaking-highlight');
+    badge.classList.remove('active');
+    setStatus('ready', 'Ready — tap a mic button to speak');
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+
+function stopSpeech() {
+  window.speechSynthesis.cancel();
+  isSpeaking = false;
+  document.getElementById('panel-en').classList.remove('speaking-highlight');
+  document.getElementById('panel-es').classList.remove('speaking-highlight');
+  document.getElementById('speaking-badge-en').classList.remove('active');
+  document.getElementById('speaking-badge-es').classList.remove('active');
+  setStatus('ready', 'Ready — tap a mic button to speak');
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── STATUS ────────────────────────────────────────────────────────────────────
+function setStatus(state, text) {
+  document.getElementById('status-dot').className = 'status-dot ' + state;
+  document.getElementById('status-text').textContent = text;
+}
+
+// ── SETUP ─────────────────────────────────────────────────────────────────────
+function saveSetup() {
+  const d = {
+    title:v('s-title'),date:v('s-date'),project:v('s-project'),jobnum:v('s-jobnum'),
+    foreman:v('s-foreman'),location:v('s-location'),work:v('s-work'),emails:v('s-emails'),company:v('s-company')
+  };
+  try { localStorage.setItem('smi_setup', JSON.stringify(d)); showSaved(); } catch(e){}
+}
+
+function loadSetup() {
+  try {
+    const d = JSON.parse(localStorage.getItem('smi_setup') || '{}');
+    ['title','date','project','jobnum','foreman','location','work','emails','company'].forEach(f => {
+      if (d[f]) document.getElementById('s-'+f).value = d[f];
+    });
+    applySetupBadge();
+  } catch(e){}
+}
+
+function applySetup() {
+  saveSetup(); applySetupBadge();
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-interpreter').classList.add('active');
+  document.querySelector('.tab').classList.add('active');
+  setStatus('ready', 'Setup saved — tap a mic button to start the meeting');
+}
+
+function applySetupBadge() {
+  const proj = v('s-project') || v('s-jobnum');
+  if (proj) document.getElementById('badge-project').textContent = proj;
+}
+
+function showSaved() {
+  const el = document.getElementById('save-indicator');
+  el.textContent = '● Saved'; el.style.color = 'rgba(60,187,119,0.9)';
+  setTimeout(() => { el.style.color = 'rgba(255,255,255,0.5)'; }, 1500);
+}
+
+function v(id) { return document.getElementById(id).value.trim(); }
+
+// ── TAGS ──────────────────────────────────────────────────────────────────────
+function toggleTag(el, tag) {
+  el.classList.toggle('active');
+  activeTags = el.classList.contains('active') ? [...activeTags, tag] : activeTags.filter(t => t !== tag);
+}
+
+// ── SPEECH RECOGNITION ───────────────────────────────────────────────────────
+function startListening(lang) {
+  if (!SpeechRecognition) { setStatus('', 'Use Chrome or Edge for speech recognition'); return; }
+  if (activeLang === lang && recognition) { stopListening(); return; }
+  if (recognition) recognition.abort();
+
+  // Don't start mic while TTS is speaking
+  if (isSpeaking) { window.speechSynthesis.cancel(); isSpeaking = false; }
+
+  activeLang = lang;
+  document.getElementById('btn-en').classList.toggle('active-mic', lang === 'en');
+  document.getElementById('btn-es').classList.toggle('active-mic', lang === 'es');
+
+  recognition = new SpeechRecognition();
+  recognition.lang = lang === 'en' ? 'en-US' : 'es-MX';
+  recognition.interimResults = true;
+  recognition.continuous = true;
+
+  const srcBox = document.getElementById('caption-' + lang);
+  const dstBox = document.getElementById('caption-' + (lang === 'en' ? 'es' : 'en'));
+  srcBox.classList.add('active');
+  dstBox.innerHTML = '<span class="interim-text">Translating...</span>';
+  setStatus('listening', lang === 'en' ? 'Listening in English...' : 'Escuchando en Español...');
+
+  let finalText = '';
+  let translateTimer = null;
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    finalText = '';
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
+      else interim += e.results[i][0].transcript;
+    }
+    srcBox.innerHTML = `<span>${finalText}</span><span class="interim-text">${interim}</span>`;
+    if (finalText.trim()) {
+      clearTimeout(translateTimer);
+      translateTimer = setTimeout(() => {
+        setStatus('translating', lang === 'en' ? 'Translating to Spanish...' : 'Traduciendo al inglés...');
+        translateAndSpeak(finalText.trim(), lang, dstBox);
+      }, 700);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error !== 'aborted') setStatus('ready', 'Mic error: ' + e.error + ' — try again');
+  };
+
+  recognition.onend = () => { if (activeLang === lang) activeLang = null; };
+  recognition.start();
+}
+
+function stopListening() {
+  if (recognition) recognition.stop();
+  activeLang = null; recognition = null;
+  ['btn-en','btn-es'].forEach(id => document.getElementById(id).classList.remove('active-mic'));
+  ['caption-en','caption-es'].forEach(id => document.getElementById(id).classList.remove('active'));
+  setStatus('ready', 'Ready — tap a mic button to speak');
+}
+
+// ── TRANSLATE + SPEAK ────────────────────────────────────────────────────────
+async function translateAndSpeak(text, fromLang, dstBox) {
+  const tl = fromLang === 'en' ? 'es' : 'en';
+  const sl = fromLang === 'en' ? 'en' : 'es';
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const translated = data[0].map(s => s[0]).join('');
+    dstBox.textContent = translated;
+    setStatus('ready', 'Ready — tap a mic button to speak');
+    logEntry(text, translated, fromLang);
+    // Speak the translation in the target language
+    speakText(translated, tl);
+  } catch (err) {
+    dstBox.innerHTML = '<span style="color:var(--red);font-size:14px;">Translation failed — check internet connection</span>';
+    setStatus('ready', 'Translation failed — check connection');
+    logEntry(text, '[Translation failed]', fromLang);
+  }
+}
+
+// ── REPLAY from log ───────────────────────────────────────────────────────────
+function replayEntry(idx) {
+  const e = meetingEntries[idx];
+  if (!e) return;
+  const tl = e.lang === 'en' ? 'es' : 'en';
+  speakText(e.translated, tl);
+}
+
+// ── LOG ───────────────────────────────────────────────────────────────────────
+function logEntry(original, translated, lang) {
+  const time = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const tags = [...activeTags];
+  const idx = meetingEntries.length;
+  meetingEntries.push({ time, original, translated, lang, tags });
+  saveToStorage();
+  document.getElementById('badge-count').textContent = meetingEntries.length + (meetingEntries.length === 1 ? ' entry' : ' entries');
+  document.getElementById('log-empty')?.remove();
+  const log = document.getElementById('minutes-log');
+  const div = document.createElement('div');
+  div.className = `log-entry lang-${lang}`;
+  const tagHTML = tags.length ? `<div class="log-tags">${tags.map(t=>`<span class="log-tag">${t}</span>`).join('')}</div>` : '';
+  div.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-lang ${lang==='en'?'lang-badge-en':'lang-badge-es'}">${lang==='en'?'🇺🇸 EN':'🇲🇽 ES'}</span>
+    <div>
+      <div class="log-original">${original}</div>
+      <div class="log-translated">→ ${translated}</div>
+      ${tagHTML}
+    </div>
+    <button class="btn-replay" onclick="replayEntry(${idx})" title="Replay translation">🔊</button>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearMinutes() {
+  if (!meetingEntries.length) return;
+  if (!confirm('Clear all meeting minutes? This cannot be undone.')) return;
+  meetingEntries.length = 0;
+  document.getElementById('minutes-log').innerHTML = '<div class="minutes-empty" id="log-empty">No entries yet.</div>';
+  document.getElementById('badge-count').textContent = '0 entries';
+  saveToStorage();
+}
+
+// ── CREW ──────────────────────────────────────────────────────────────────────
+function addCrewMember() {
+  const nameEl = document.getElementById('crew-name-input');
+  const roleEl = document.getElementById('crew-role-input');
+  const name = nameEl.value.trim();
+  if (!name) return;
+  crewMembers.push({ id: Date.now(), name, role: roleEl.value.trim() || 'Laborer', present: true });
+  nameEl.value = ''; roleEl.value = '';
+  renderCrew(); saveToStorage();
+}
+document.getElementById('crew-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') addCrewMember(); });
+
+function removeCrewMember(id) {
+  const idx = crewMembers.findIndex(m => m.id === id);
+  if (idx >= 0) crewMembers.splice(idx, 1);
+  renderCrew(); saveToStorage();
+}
+
+function togglePresent(id, val) {
+  const m = crewMembers.find(m => m.id === id);
+  if (m) m.present = val;
+  updatePresentCount(); saveToStorage();
+}
+
+function markAllPresent() { crewMembers.forEach(m => m.present = true); renderCrew(); saveToStorage(); }
+
+function renderCrew() {
+  const list = document.getElementById('crew-list');
+  if (!crewMembers.length) { list.innerHTML = '<div class="minutes-empty">No crew added yet.</div>'; updatePresentCount(); return; }
+  list.innerHTML = crewMembers.map(m => `
+    <div class="crew-card">
+      <div class="crew-avatar">${m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+      <div class="crew-info"><div class="crew-name">${m.name}</div><div class="crew-role">${m.role}</div></div>
+      <label class="toggle-present">
+        <input type="checkbox" ${m.present?'checked':''} onchange="togglePresent(${m.id},this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+      <button class="btn-remove-crew" onclick="removeCrewMember(${m.id})">✕</button>
+    </div>`).join('');
+  updatePresentCount();
+}
+
+function updatePresentCount() {
+  const p = crewMembers.filter(m => m.present).length;
+  document.getElementById('present-count').textContent = `${p} of ${crewMembers.length} present`;
+}
+
+// ── PHOTOS ────────────────────────────────────────────────────────────────────
+function handlePhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { photoDataURLs.push(ev.target.result); renderPhotos(); };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function renderPhotos() {
+  document.getElementById('photo-previews').innerHTML = photoDataURLs.map((url,i) => `
+    <div class="photo-preview">
+      <img src="${url}" alt="Photo ${i+1}">
+      <button class="btn-remove-photo" onclick="removePhoto(${i})">✕ Remove</button>
+    </div>`).join('');
+}
+
+function removePhoto(idx) { photoDataURLs.splice(idx,1); renderPhotos(); }
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function saveToStorage() {
+  try {
+    localStorage.setItem('smi_entries', JSON.stringify(meetingEntries));
+    localStorage.setItem('smi_crew', JSON.stringify(crewMembers));
+    showSaved();
+  } catch(e){}
+}
+
+function loadFromStorage() {
+  try {
+    const entries = JSON.parse(localStorage.getItem('smi_entries') || '[]');
+    const crew = JSON.parse(localStorage.getItem('smi_crew') || '[]');
+    if (entries.length) {
+      entries.forEach(e => { meetingEntries.push(e); addLogEntryToDOM(e); });
+      document.getElementById('badge-count').textContent = meetingEntries.length + ' entries';
+    }
+    if (crew.length) { crew.forEach(m => crewMembers.push(m)); renderCrew(); }
+  } catch(e){}
+}
+
+function addLogEntryToDOM(entry) {
+  document.getElementById('log-empty')?.remove();
+  const log = document.getElementById('minutes-log');
+  const idx = meetingEntries.length - 1;
+  const div = document.createElement('div');
+  div.className = `log-entry lang-${entry.lang}`;
+  const tagHTML = entry.tags?.length ? `<div class="log-tags">${entry.tags.map(t=>`<span class="log-tag">${t}</span>`).join('')}</div>` : '';
+  div.innerHTML = `
+    <span class="log-time">${entry.time}</span>
+    <span class="log-lang ${entry.lang==='en'?'lang-badge-en':'lang-badge-es'}">${entry.lang==='en'?'🇺🇸 EN':'🇲🇽 ES'}</span>
+    <div>
+      <div class="log-original">${entry.original}</div>
+      <div class="log-translated">→ ${entry.translated}</div>
+      ${tagHTML}
+    </div>
+    <button class="btn-replay" onclick="replayEntry(${idx})" title="Replay translation">🔊</button>`;
+  log.appendChild(div);
+}
+
+// ── EMAIL ─────────────────────────────────────────────────────────────────────
+function openEmailModal() {
+  const title = v('s-title') || 'Safety Meeting Minutes';
+  const dateVal = v('s-date') || new Date().toLocaleDateString();
+  document.getElementById('email-to').value = v('s-emails');
+  document.getElementById('email-subject').value = `${title} — ${dateVal}`;
+  document.getElementById('email-modal').classList.add('active');
+}
+function closeEmailModal() { document.getElementById('email-modal').classList.remove('active'); }
+function sendEmail() {
+  closeEmailModal(); exportMinutes();
+  const to = document.getElementById('email-to').value;
+  const subj = encodeURIComponent(document.getElementById('email-subject').value);
+  const body = encodeURIComponent((document.getElementById('email-body').value||'') + '\n\nPlease find the meeting minutes HTML file attached.');
+  setTimeout(() => { window.location.href = `mailto:${to}?subject=${subj}&body=${body}`; }, 800);
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+function exportMinutes() {
+  const title = v('s-title') || 'Daily Safety Meeting';
+  const rawDate = document.getElementById('s-date').value;
+  const dateStr = rawDate ? new Date(rawDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) : new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const project = v('s-project')||'—', jobnum = v('s-jobnum')||'—', foreman = v('s-foreman')||'—';
+  const location = v('s-location')||'—', work = v('s-work')||'—';
+  const company = v('s-company')||'Superior Construction Company';
+  const elapsed = document.getElementById('meeting-timer').textContent;
+  const present = crewMembers.filter(m=>m.present);
+
+  const crewSection = crewMembers.length ? `
+    <h2 style="font-size:16px;margin:28px 0 12px;color:#0F2540;border-bottom:2px solid #E8621A;padding-bottom:6px;">👷 Attendance (${present.length} of ${crewMembers.length} Present)</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr>
+        <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;">Name</th>
+        <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;">Role</th>
+        <th style="background:#0F2540;color:white;padding:9px 12px;text-align:center;">Status</th>
+      </tr></thead>
+      <tbody>${crewMembers.map((m,i)=>`<tr style="background:${i%2===0?'#F4F7FB':'#fff'}">
+        <td style="padding:8px 12px;border-bottom:1px solid #ddd;">${m.name}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #ddd;">${m.role}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #ddd;text-align:center;">${m.present?'<span style="color:#1A7A3F;font-weight:700;">✓ Present</span>':'<span style="color:#C0392B;font-weight:600;">✗ Absent</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '';
+
+  const minutesRows = meetingEntries.length ? meetingEntries.map((e,i)=>`
+    <tr style="background:${i%2===0?'#F4F7FB':'#fff'}">
+      <td style="padding:8px 12px;border-bottom:1px solid #ddd;white-space:nowrap;font-size:12px;color:#5A7A99;">${e.time}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #ddd;"><span style="background:${e.lang==='en'?'#E8EEF5':'#FDF0E8'};color:${e.lang==='en'?'#0F2540':'#B84C10'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">${e.lang==='en'?'🇺🇸 EN':'🇲🇽 ES'}</span></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #ddd;font-weight:500;">${e.original}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #ddd;color:#5A7A99;font-style:italic;">${e.translated}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #ddd;">${(e.tags||[]).map(t=>`<span style="background:#E8EEF5;color:#0F2540;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-right:3px;">${t}</span>`).join('')}</td>
+    </tr>`).join('') : '<tr><td colspan="5" style="padding:16px;text-align:center;color:#5A7A99;font-style:italic;">No entries recorded.</td></tr>';
+
+  const photoSection = photoDataURLs.length ? `
+    <h2 style="font-size:16px;margin:28px 0 12px;color:#0F2540;border-bottom:2px solid #E8621A;padding-bottom:6px;">📷 Sign-In Sheet / Photos</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;">${photoDataURLs.map((url,i)=>`<img src="${url}" style="max-width:380px;width:100%;border-radius:8px;border:1px solid #ddd;" alt="Photo ${i+1}">`).join('')}</div>` : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Safety Meeting Minutes — ${dateStr}</title>
+<style>body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 24px;color:#0F2540;}@media print{.no-print{display:none!important;}}</style>
+</head><body>
+<div style="background:#0F2540;color:white;padding:20px 24px;border-radius:10px;margin-bottom:24px;">
+  <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:6px;">${company}</div>
+  <h1 style="font-size:24px;font-weight:800;margin:0 0 4px;">⚠️ ${title}</h1>
+  <div style="font-size:14px;color:rgba(255,255,255,0.75);">${dateStr}</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;">
+  <div style="background:#F4F7FB;border-radius:8px;padding:12px;"><div style="font-size:11px;font-weight:700;color:#5A7A99;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Project</div><div style="font-weight:600;">${project}</div></div>
+  <div style="background:#F4F7FB;border-radius:8px;padding:12px;"><div style="font-size:11px;font-weight:700;color:#5A7A99;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Job Number</div><div style="font-weight:600;">${jobnum}</div></div>
+  <div style="background:#F4F7FB;border-radius:8px;padding:12px;"><div style="font-size:11px;font-weight:700;color:#5A7A99;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Foreman</div><div style="font-weight:600;">${foreman}</div></div>
+  <div style="background:#F4F7FB;border-radius:8px;padding:12px;"><div style="font-size:11px;font-weight:700;color:#5A7A99;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Location / Area</div><div style="font-weight:600;">${location}</div></div>
+  <div style="background:#F4F7FB;border-radius:8px;padding:12px;"><div style="font-size:11px;font-weight:700;color:#5A7A99;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Duration</div><div style="font-weight:600;">${elapsed}</div></div>
+  <div style="background:#F4F7FB;border-radius:8px;padding:12px;"><div style="font-size:11px;font-weight:700;color:#5A7A99;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Crew Present</div><div style="font-weight:600;">${present.length} of ${crewMembers.length}</div></div>
+</div>
+<div style="background:#FDF0E8;border-left:4px solid #E8621A;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:24px;font-size:13px;"><strong>Scope of Work:</strong> ${work}</div>
+${crewSection}
+<h2 style="font-size:16px;margin:28px 0 12px;color:#0F2540;border-bottom:2px solid #E8621A;padding-bottom:6px;">📋 Meeting Minutes — ${meetingEntries.length} Entries</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+  <thead><tr>
+    <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;width:80px;">Time</th>
+    <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;width:55px;">Lang</th>
+    <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;">Spoken</th>
+    <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;">Translation</th>
+    <th style="background:#0F2540;color:white;padding:9px 12px;text-align:left;width:150px;">Tags</th>
+  </tr></thead>
+  <tbody>${minutesRows}</tbody>
+</table>
+${photoSection}
+<div style="margin-top:36px;padding-top:16px;border-top:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
+  <div style="font-size:11px;color:#8AAAC4;">Generated by Safety Meeting Interpreter · ${company} · ${new Date().toLocaleString()}</div>
+  <button class="no-print" onclick="window.print()" style="padding:10px 20px;background:#0F2540;color:white;border:none;cursor:pointer;font-size:13px;border-radius:6px;font-weight:700;">🖨️ Print / Save PDF</button>
+</div>
+
+<div id="install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:#1E3A5F;padding:10px 16px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -2px 12px rgba(0,0,0,0.3);">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <img src="icons/icon-192.png" style="width:36px;height:36px;border-radius:8px;">
+    <div>
+      <div style="color:white;font-weight:700;font-size:14px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.5px;">INSTALL SAFETY INTERPRETER</div>
+      <div style="color:rgba(255,255,255,0.6);font-size:12px;">Add to home screen for quick access on site</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-shrink:0;">
+    <button onclick="document.getElementById('install-banner').style.display='none'" style="padding:7px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.7);font-size:13px;font-weight:600;cursor:pointer;">Not now</button>
+    <button onclick="installApp()" style="padding:7px 16px;border-radius:6px;border:none;background:#E8621A;color:white;font-size:13px;font-weight:700;cursor:pointer;font-family:Barlow Condensed,sans-serif;letter-spacing:0.5px;">⬇ Install App</button>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      console.log('SW registered:', reg.scope);
+    }).catch(err => console.log('SW error:', err));
+  });
+}
+
+// PWA install prompt
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').style.display = 'flex';
+});
+
+function installApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    document.getElementById('install-banner').style.display = 'none';
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').style.display = 'none';
+});
+</script>
+
+</body></html>`;
+
+  const blob = new Blob([html],{type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `safety-meeting-${new Date().toISOString().slice(0,10)}.html`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+document.getElementById('s-date').value = new Date().toISOString().slice(0,10);
+loadSetup();
+loadFromStorage();
+</script>
+</body>
+</html>
