@@ -739,30 +739,49 @@ function pttEnd(lang, e) {
 }
 
 // ── TRANSLATE + SPEAK ────────────────────────────────────────────────────────
-async function translateAndSpeak(text, fromLang, dstBox) {
+function translateAndSpeak(text, fromLang, dstBox) {
   const tl = fromLang === 'en' ? 'es' : 'en';
   const sl = fromLang === 'en' ? 'en' : 'es';
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
-  try {
-    const data = await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', url, true);
-      xhr.onload = () => {
-        if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error('HTTP ' + xhr.status));
-      };
-      xhr.onerror = () => reject(new Error('Network error'));
-      xhr.send();
-    });
-    const translated = data[0].map(s => s[0]).join('');
-    dstBox.textContent = translated;
-    logEntry(text, translated, fromLang);
-    speakText(translated, tl);
-  } catch(err) {
+
+  // JSONP method — works on iOS home screen PWA where fetch/XHR are blocked
+  const cbName = 'gt_cb_' + Date.now();
+  const script = document.createElement('script');
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&ie=UTF-8&oe=UTF-8&q=${encodeURIComponent(text)}&cb=${cbName}`;
+
+  const timeout = setTimeout(() => {
+    // Cleanup and show error if no response in 8 seconds
+    try { document.head.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    dstBox.innerHTML = '<span style="color:var(--red);font-size:13px;">Translation timed out — check internet</span>';
+    setStatus('ready', 'Translation failed — check connection');
+    logEntry(text, '[Translation failed]', fromLang);
+  }, 8000);
+
+  window[cbName] = (data) => {
+    clearTimeout(timeout);
+    try { document.head.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    try {
+      const translated = data[0].map(s => s[0]).join('');
+      dstBox.textContent = translated;
+      logEntry(text, translated, fromLang);
+      speakText(translated, tl);
+    } catch(e) {
+      dstBox.innerHTML = '<span style="color:var(--red);font-size:13px;">Translation error</span>';
+      setStatus('ready', 'Translation error');
+      logEntry(text, '[Translation error]', fromLang);
+    }
+  };
+
+  script.src = url;
+  script.onerror = () => {
+    clearTimeout(timeout);
+    delete window[cbName];
     dstBox.innerHTML = '<span style="color:var(--red);font-size:13px;">Translation failed — check internet</span>';
     setStatus('ready', 'Translation failed — check connection');
     logEntry(text, '[Translation failed]', fromLang);
-  }
+  };
+  document.head.appendChild(script);
 }
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
