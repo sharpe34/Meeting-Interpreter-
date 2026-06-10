@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+in<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
@@ -738,11 +738,19 @@ async function translateAndSpeak(text, fromLang, dstBox) {
   const tl = fromLang === 'en' ? 'es' : 'en';
   const sl = fromLang === 'en' ? 'en' : 'es';
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const translated = data[0].map(s => s[0]).join('');
+  try 
+    const data = await new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.onload = () => {
+    if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
+    else reject(new Error('HTTP ' + xhr.status));
+  };
+  xhr.onerror = () => reject(new Error('Network error'));
+  xhr.send();
+});
+const translated = data[0].map(s => s[0]).join('');
+
     dstBox.textContent = translated;
     logEntry(text, translated, fromLang);
     speakText(translated, tl);
