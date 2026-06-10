@@ -738,49 +738,24 @@ function pttEnd(lang, e) {
 }
 
 // ── TRANSLATE + SPEAK ────────────────────────────────────────────────────────
-function translateAndSpeak(text, fromLang, dstBox) {
+async function translateAndSpeak(text, fromLang, dstBox) {
   const tl = fromLang === 'en' ? 'es' : 'en';
   const sl = fromLang === 'en' ? 'en' : 'es';
-
-  // JSONP method — works on iOS home screen PWA where fetch/XHR are blocked
-  const cbName = 'gt_cb_' + Date.now();
-  const script = document.createElement('script');
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&ie=UTF-8&oe=UTF-8&q=${encodeURIComponent(text)}&cb=${cbName}`;
-
-  const timeout = setTimeout(() => {
-    // Cleanup and show error if no response in 8 seconds
-    try { document.head.removeChild(script); } catch(e) {}
-    delete window[cbName];
-    dstBox.innerHTML = '<span style="color:var(--red);font-size:13px;">Translation timed out — check internet</span>';
-    setStatus('ready', 'Translation failed — check connection');
-    logEntry(text, '[Translation failed]', fromLang);
-  }, 8000);
-
-  window[cbName] = (data) => {
-    clearTimeout(timeout);
-    try { document.head.removeChild(script); } catch(e) {}
-    delete window[cbName];
-    try {
-      const translated = data[0].map(s => s[0]).join('');
-      dstBox.textContent = translated;
-      logEntry(text, translated, fromLang);
-      speakText(translated, tl);
-    } catch(e) {
-      dstBox.innerHTML = '<span style="color:var(--red);font-size:13px;">Translation error</span>';
-      setStatus('ready', 'Translation error');
-      logEntry(text, '[Translation error]', fromLang);
-    }
-  };
-
-  script.src = url;
-  script.onerror = () => {
-    clearTimeout(timeout);
-    delete window[cbName];
+  // Cloudflare proxy — bypasses iOS cross-origin restrictions
+  const url = `https://lively-surf-6e7d.bradysharpe.workers.dev/?sl=${sl}&tl=${tl}&q=${encodeURIComponent(text)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const translated = data.translated;
+    dstBox.textContent = translated;
+    logEntry(text, translated, fromLang);
+    speakText(translated, tl);
+  } catch(err) {
     dstBox.innerHTML = '<span style="color:var(--red);font-size:13px;">Translation failed — check internet</span>';
     setStatus('ready', 'Translation failed — check connection');
     logEntry(text, '[Translation failed]', fromLang);
-  };
-  document.head.appendChild(script);
+  }
 }
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
